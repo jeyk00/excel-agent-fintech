@@ -187,7 +187,7 @@ class FinancialReporter:
             pass
             raise PermissionError(f"Could not save to {self.output_path}. Please close the file and try again.")
 
-def generate_excel_report(df: pd.DataFrame, output_path: str):
+def generate_excel_report(df: pd.DataFrame, output_path: str) -> str:
     """
     Wrapper function to maintain compatibility with main.py.
     Instantiates FinancialReporter and creates the dashboard.
@@ -206,12 +206,14 @@ def generate_excel_report(df: pd.DataFrame, output_path: str):
     try:
         reporter = FinancialReporter(output_path)
         reporter.create_dashboard(df, company_info)
+        return output_path
     except PermissionError:
         print(f"⚠️ Permission denied: {output_path} is open.")
         new_path = output_path.replace(".xlsx", f"_{pd.Timestamp.now().strftime('%H%M%S')}.xlsx")
         print(f"🔄 Retrying with new filename: {new_path}")
         reporter = FinancialReporter(new_path)
         reporter.create_dashboard(df, company_info)
+        return new_path
 
 if __name__ == "__main__":
     # Test block
