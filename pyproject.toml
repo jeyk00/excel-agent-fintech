@@ -1,7 +1,7 @@
 [project]
 name = "excel-financial-agent"
 version = "0.1.0"
-description = "Add your description here"
+description = "Turn PDF financial reports into investor-grade Excel dashboards instantly. This AI agent extracts key metrics, calculates EBITDA, and visualizes trends, saving you hours of manual data entry."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
