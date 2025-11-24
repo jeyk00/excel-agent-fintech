@@ -6,7 +6,7 @@ This agent automates the tedious process of "financial spreading" — converting
 
 ## 🚀 Key Features
 
-*   **Smart PDF Filter**: Intelligent pre-processing scans PDF pages for financial keywords (e.g., "rachunek zysków i strat", "aktywa"), reducing API costs and noise by **~50%**.
+*   **Smart PDF Filter**: Intelligent pre-processing scans PDF pages for financial keywords, reducing API costs and noise by **~50%**.
 *   **Robust Extraction**:
     *   Uses **Gemini 2.0 Flash** (via OpenAI compatibility) for high-speed, low-cost extraction.
     *   **Auto-Retry Mechanism**: Built-in exponential backoff (using `tenacity`) handles API rate limits (429 errors) gracefully.
