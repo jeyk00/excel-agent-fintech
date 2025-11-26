@@ -10,23 +10,24 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import project modules
 from src.filter import filter_financial_pages
-from src.parser import parse_pdf
+from src.ingest.factory import get_ingestion_strategy
 from src.extractor import extract_data
-from src.analyzer import analyze_report
+from src.analyzer import aggregate_reports
 from src.reporter import generate_excel_report
+from src.ml.forecaster import predict_future_revenue
 
 # Load environment variables
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(dotenv_path)
 
 # Page Config
-st.set_page_config(page_title="AI Financial Analyst", page_icon="💸", layout="wide")
+st.set_page_config(page_title="AI Financial Analyst v2.0", page_icon="💸", layout="wide")
 
 # Title and Header
-st.title("💸 AI Financial Analyst Agent")
+st.title("💸 AI Financial Analyst Agent v2.0")
 st.markdown("""
-**Upload a PDF financial report** (e.g., Annual Report) and let the AI extract key metrics, 
-calculate EBITDA, and generate an investor-grade Excel dashboard.
+**Upload financial reports** (PDF, XML) and let the AI extract key metrics, 
+perform multi-year analysis, and forecast future revenue.
 """)
 
 # Sidebar for configuration
@@ -40,12 +41,27 @@ with st.sidebar:
     use_filter = st.checkbox("Use Smart PDF Filter", value=True, help="Reduces cost and noise by filtering relevant pages.")
     
     st.divider()
+    st.header("DCF Assumptions")
+    wacc = st.slider("WACC (%)", min_value=5.0, max_value=15.0, value=10.0, step=0.5)
+    terminal_growth = st.number_input("Terminal Growth Rate (%)", min_value=0.0, max_value=5.0, value=2.5, step=0.1)
+    
+    st.divider()
     st.info("Ensure API Keys are set in `.env`.")
 
 # File Uploader
-uploaded_file = st.file_uploader("Upload Annual Report (PDF)", type="pdf")
+uploaded_files = st.file_uploader("Upload Financial Reports", type=["pdf", "xml"], accept_multiple_files=True)
 
-if uploaded_file and st.button("🚀 Start Analysis"):
+# Initialize Session State
+if 'analysis_complete' not in st.session_state:
+    st.session_state.analysis_complete = False
+if 'df' not in st.session_state:
+    st.session_state.df = None
+if 'forecast_df' not in st.session_state:
+    st.session_state.forecast_df = None
+if 'final_path' not in st.session_state:
+    st.session_state.final_path = None
+
+if uploaded_files and st.button("🚀 Start Analysis"):
     # Initialize Progress
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -55,70 +71,114 @@ if uploaded_file and st.button("🚀 Start Analysis"):
     os.makedirs("data/temp", exist_ok=True)
     os.makedirs("data/processed", exist_ok=True)
     
+    all_reports = []
+    
     try:
-        # 1. Save File
-        status_text.text("📥 Saving uploaded file...")
-        input_path = os.path.join("data", "raw", uploaded_file.name)
-        with open(input_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        progress_bar.progress(10)
+        total_files = len(uploaded_files)
+        step_size = 100 / (total_files * 4 + 2) # Approximate steps
+        current_progress = 0
         
-        # 2. Filter PDF
-        pdf_to_process = input_path
-        if use_filter:
-            status_text.text("🔍 Smart Filtering: Scanning for financial pages...")
-            filtered_path = os.path.join("data", "temp", f"filtered_{uploaded_file.name}")
-            if filter_financial_pages(input_path, filtered_path):
-                pdf_to_process = filtered_path
-                st.success(f"Smart Filter: Reduced PDF to relevant pages.")
-            else:
-                st.warning("Smart Filter found no matches. Using original PDF.")
-        progress_bar.progress(30)
-        
-        # 3. Parse PDF
-        status_text.text("📄 Parsing PDF to Markdown (LlamaParse)...")
-        markdown_text = parse_pdf(pdf_to_process)
-        progress_bar.progress(50)
-        
-        # 4. Extract Data
-        status_text.text(f"🤖 Extracting data with {model_name}...")
-        report = extract_data(markdown_text, model_name=model_name)
-        progress_bar.progress(70)
-        
-        # 5. Analyze Data
-        status_text.text("📊 Calculating KPIs (EBITDA, Margins, Growth)...")
-        df = analyze_report(report)
-        
-        # Display Raw Data Preview
-        with st.expander("Show Raw Data Preview"):
-            st.dataframe(df)
+        for i, uploaded_file in enumerate(uploaded_files):
+            # 1. Save File
+            status_text.text(f"📥 Processing {uploaded_file.name}: Saving...")
+            input_path = os.path.join("data", "raw", uploaded_file.name)
+            with open(input_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
             
-        progress_bar.progress(85)
+            # 2. Ingestion Strategy
+            status_text.text(f"📄 Processing {uploaded_file.name}: Parsing...")
+            strategy = get_ingestion_strategy(input_path)
+            
+            # Special handling for PDF filtering (only if it's a PDF)
+            file_to_parse = input_path
+            if input_path.lower().endswith('.pdf') and use_filter:
+                status_text.text(f"🔍 Processing {uploaded_file.name}: Smart Filtering...")
+                filtered_path = os.path.join("data", "temp", f"filtered_{uploaded_file.name}")
+                if filter_financial_pages(input_path, filtered_path):
+                    file_to_parse = filtered_path
+            
+            # Parse
+            markdown_text = strategy.parse(file_to_parse)
+            
+            # 3. Extract Data
+            status_text.text(f"🤖 Processing {uploaded_file.name}: Extracting data...")
+            report = extract_data(markdown_text, model_name=model_name)
+            all_reports.append(report)
+            
+            current_progress += step_size * 4
+            progress_bar.progress(min(int(current_progress), 90))
+            
+        # 4. Aggregation
+        status_text.text("📊 Aggregating Reports...")
+        df = aggregate_reports(all_reports)
         
-        # 6. Generate Report
-        status_text.text("📈 Generating Investor-Grade Excel Dashboard...")
-        output_filename = f"{os.path.splitext(uploaded_file.name)[0]}.xlsx"
-        output_path = os.path.join("data", "processed", output_filename)
-        
-        final_path = generate_excel_report(df, output_path)
-        
-        progress_bar.progress(100)
-        status_text.text("✅ Analysis Complete!")
-        
-        st.success(f"Report generated successfully!")
-        
-        # 7. Download Button
-        if final_path and os.path.exists(final_path):
-            with open(final_path, "rb") as f:
-                st.download_button(
-                    label="📥 Download Excel Dashboard",
-                    data=f,
-                    file_name=os.path.basename(final_path),
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+        if not df.empty:
+            # 5. Forecasting
+            status_text.text("🔮 Forecasting Future Revenue...")
+            forecast_df = predict_future_revenue(df[['Year', 'revenue']], years_ahead=5)
+            
+            # 6. Generate Report
+            status_text.text("📈 Generating Investor-Grade Excel Dashboard...")
+            # Use the name of the first file for the output, or a generic name
+            base_name = os.path.splitext(uploaded_files[0].name)[0] if uploaded_files else "report"
+            output_filename = f"{base_name}_analysis.xlsx"
+            output_path = os.path.join("data", "processed", output_filename)
+            
+            # Merge Forecast into Main DataFrame for the Report
+            # 1. Select only Forecast rows
+            future_only = forecast_df[forecast_df['type'] == 'Forecast'].copy()
+            
+            # 2. Add metadata from the main df (using the first row) to ensure consistency
+            if not df.empty:
+                first_row = df.iloc[0]
+                future_only['company_name'] = first_row.get('company_name', 'Unknown')
+                future_only['currency'] = first_row.get('currency', 'N/A')
+                future_only['reporting_unit'] = first_row.get('reporting_unit', 'thousands')
+            
+            # 3. Concatenate
+            combined_df = pd.concat([df, future_only], ignore_index=True)
+            
+            final_path = generate_excel_report(combined_df, output_path)
+            
+            progress_bar.progress(100)
+            status_text.text("✅ Analysis Complete!")
+            
+            # Store results in Session State
+            st.session_state.df = df
+            st.session_state.forecast_df = forecast_df
+            st.session_state.final_path = final_path
+            st.session_state.analysis_complete = True
+            
+        else:
+            st.warning("No data extracted from the provided files.")
+            progress_bar.progress(100)
         
     except Exception as e:
         st.error(f"An error occurred: {e}")
         # print full traceback to console for debugging
         import traceback
         traceback.print_exc()
+
+# Display Results if Analysis is Complete
+if st.session_state.analysis_complete:
+    st.success(f"Report generated successfully!")
+    
+    # Display Raw Data Preview
+    if st.session_state.df is not None:
+        st.subheader("Historical Data")
+        st.dataframe(st.session_state.df)
+    
+    if st.session_state.forecast_df is not None:
+        st.subheader("Revenue Forecast")
+        st.line_chart(st.session_state.forecast_df.set_index('Year')['revenue'])
+    
+    # Download Button
+    if st.session_state.final_path and os.path.exists(st.session_state.final_path):
+        with open(st.session_state.final_path, "rb") as f:
+            st.download_button(
+                label="📥 Download Excel Dashboard",
+                data=f,
+                file_name=os.path.basename(st.session_state.final_path),
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+

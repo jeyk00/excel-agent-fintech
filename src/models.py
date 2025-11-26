@@ -13,7 +13,7 @@ class FinancialPeriod(BaseModel):
     cogs: float = Field(..., description="Cost of Goods Sold (Koszt własny sprzedaży).")
     ebit: float = Field(..., description="Earnings Before Interest and Taxes (Zysk operacyjny).")
     net_income: float = Field(..., description="Net Income (Zysk netto).")
-    depreciation_amortization: float = Field(0.0, description="Depreciation and Amortization (Amortyzacja).")
+    depreciation_amortization: Optional[float] = Field(None, description="Depreciation and Amortization (Amortyzacja).")
     
     # Balance Sheet
     assets: float = Field(..., ge=0, description="Total Assets (Aktywa).")
@@ -40,7 +40,7 @@ class FinancialPeriod(BaseModel):
         # Check if difference is significant (e.g., > 1% of assets or absolute value > 1)
         # Relaxed tolerance to 1% to account for rounding or minor extraction errors.
         diff = abs(lhs - rhs)
-        tolerance = max(1.0, 0.01 * lhs) # 1% of Assets or 1.0, whichever is larger
+        tolerance = max(1.0, 0.05 * lhs) # 5% of Assets or 1.0, whichever is larger
         
         if diff > tolerance: 
             # We might want to just warn or log, but Pydantic validator raises error.

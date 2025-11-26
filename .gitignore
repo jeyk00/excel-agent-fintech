@@ -28,7 +28,14 @@ data/raw/*
 
 # Temporary scripts
 list_models.py
-test_dashboard.xlsx
+# Generated Reports
+*.xlsx
+
+# Debug Scripts
+debug_*.py
+tests/
+
+
 # Testing
 .pytest_cache/
 

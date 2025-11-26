@@ -14,8 +14,15 @@ This agent automates the tedious process of "financial spreading" — converting
 *   **Financial Intelligence**:
     *   Automatically calculates **EBITDA**, **EBITDA Margin**, **Net Margin**, **ROE**, and **YoY Growth**.
     *   Handles reporting units (thousands/millions) and currencies.
+*   **Web Application (v2.0)**:
+    *   **Streamlit Interface**: User-friendly drag-and-drop UI for uploading PDFs.
+    *   **Interactive Charts**: Visualize revenue forecasts and historical trends directly in the browser.
+    *   **State Persistence**: Analysis results are saved across sessions.
+*   **AI Forecasting (v2.0)**:
+    *   **Revenue Prediction**: Uses Linear Regression (`scikit-learn`) to forecast revenue for the next 5 years.
+    *   **DCF Ready**: Includes placeholders for WACC and Terminal Growth Rate assumptions.
 *   **Investor-Grade Dashboard**:
-    *   Generates a professional Excel report (`.xlsx`) using `XlsxWriter`.
+    *   **Native Excel Charts**: Includes a dedicated Revenue Forecast chart (Historical + 5Y Projection).
     *   **Sparklines**: Visual trend lines for every metric.
     *   **Smart Formatting**: Auto-formats percentages, currencies, and negative values (red).
     *   **Robust Saving**: Auto-saves to a timestamped file if the target Excel file is open/locked.
@@ -53,13 +60,23 @@ This project uses `uv` for fast dependency management.
 
 ## 🏃 Usage
 
-Run the agent on a PDF financial report:
+### Web App (Recommended)
+
+Start the Streamlit interface:
+
+```bash
+uv run streamlit run src/app.py
+```
+
+### CLI Mode
+
+Run the agent on a PDF financial report via command line:
 
 ```bash
 uv run python main.py "path/to/report.pdf"
 ```
 
-### Options
+### CLI Options
 
 *   `--model`: Specify the LLM model (default: `gemini-2.0-flash`).
     ```bash
