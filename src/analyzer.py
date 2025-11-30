@@ -2,78 +2,169 @@ import pandas as pd
 from typing import List
 from src.models import CompanyReport
 
+class FinancialAnalyzer:
+    """
+    Analyzes financial reports to extract KPIs and trends.
+    """
+    EXCHANGE_RATES = {
+        'EUR': 4.3,
+        'USD': 4.0,
+        'PLN': 1.0
+    }
+    TARGET_CURRENCY = 'PLN'
+
+    def __init__(self, reports: List[CompanyReport]):
+        """
+        Args:
+            reports (List[CompanyReport]): List of extracted company reports.
+        """
+        self.reports = reports
+        self.df: pd.DataFrame = pd.DataFrame()
+
+    def _convert_currency(self, row: dict) -> dict:
+        """
+        Converts financial metrics in the row to the target currency (PLN).
+        """
+        currency = row.get('currency', '').upper()
+        if currency == self.TARGET_CURRENCY:
+            return row
+            
+        rate = self.EXCHANGE_RATES.get(currency)
+        if not rate:
+            # If currency not found, keep as is (or log warning)
+            return row
+            
+        # Metrics to convert
+        metrics = [
+            'revenue', 'cogs', 'ebit', 'net_income', 'depreciation_amortization',
+            'assets', 'liabilities', 'equity', 'ocf',
+            'total_debt', 'cash_and_equivalents'
+        ]
+        
+        for metric in metrics:
+            if metric in row and row[metric] is not None:
+                row[metric] = row[metric] * rate
+                
+        row['currency'] = self.TARGET_CURRENCY
+        return row
+
+    def aggregate_data(self) -> pd.DataFrame:
+        """
+        Aggregates multiple CompanyReport objects into a single Pandas DataFrame.
+        Converts all data to PLN.
+        
+        Returns:
+            pd.DataFrame: Raw aggregated financial data in PLN.
+        """
+        all_data = []
+        
+        for report in self.reports:
+            for period in report.periods:
+                period_data = period.model_dump()
+                # Add metadata from the report level to each period
+                period_data['company_name'] = report.company_name
+                period_data['currency'] = report.reporting_currency
+                period_data['reporting_unit'] = report.reporting_unit
+                
+                # Convert to PLN
+                period_data = self._convert_currency(period_data)
+                
+                all_data.append(period_data)
+                
+        if not all_data:
+            self.df = pd.DataFrame()
+            return self.df
+        
+        df = pd.DataFrame(all_data)
+        
+        # Ensure date column is datetime
+        if 'period_end_date' in df.columns:
+            df['period_end_date'] = pd.to_datetime(df['period_end_date'])
+            df['Year'] = df['period_end_date'].dt.year
+        
+        # Sort by date descending (newest first)
+        self.df = df.sort_values('period_end_date', ascending=False).reset_index(drop=True)
+        return self.df
+
+    def calculate_metrics(self) -> pd.DataFrame:
+        """
+        Calculates financial KPIs (Margins, Growth, ROE) on the aggregated data.
+        
+        Returns:
+            pd.DataFrame: DataFrame with added KPI columns.
+        """
+        if self.df.empty:
+            return self.df
+            
+        df = self.df.copy()
+        
+        # 1. Margins
+        # Avoid division by zero
+        df['net_margin'] = df.apply(lambda x: x['net_income'] / x['revenue'] if x['revenue'] != 0 else 0, axis=1)
+        df['ebit_margin'] = df.apply(lambda x: x['ebit'] / x['revenue'] if x['revenue'] != 0 else 0, axis=1)
+        df['ebitda'] = df['ebit'] + df['depreciation_amortization'].fillna(0)
+        df['ebitda_margin'] = df.apply(lambda x: x['ebitda'] / x['revenue'] if x['revenue'] != 0 else 0, axis=1)
+        
+        # 2. Returns
+        df['roe'] = df.apply(lambda x: x['net_income'] / x['equity'] if x['equity'] != 0 else 0, axis=1)
+        
+        # 3. Growth (YoY)
+        # Since df is sorted descending (Newest, Oldest), shift(-1) gives the previous period
+        df['revenue_growth_yoy'] = df['revenue'].pct_change(periods=-1)
+        df['net_income_growth_yoy'] = df['net_income'].pct_change(periods=-1)
+        df['assets_growth_yoy'] = df['assets'].pct_change(periods=-1)
+        df['equity_growth_yoy'] = df['equity'].pct_change(periods=-1)
+        
+        # Reorder columns for readability
+        cols = ['period_end_date', 'Year', 'company_name', 'currency', 'reporting_unit',
+                'revenue', 'revenue_growth_yoy', 
+                'ebitda', 'ebitda_margin',
+                'ebit', 'ebit_margin',
+                'net_income', 'net_income_growth_yoy', 'net_margin',
+                'assets', 'assets_growth_yoy',
+                'equity', 'equity_growth_yoy', 'roe',
+                'liabilities', 'cogs', 'ocf',
+                'shares_outstanding', 'total_debt', 'cash_and_equivalents']
+                
+        # Select only columns that exist
+        cols = [c for c in cols if c in df.columns]
+        
+        self.df = df[cols]
+        return self.df
+
+    def enrich_with_forecast(self, forecast_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Merges historical data with forecast data.
+        
+        Args:
+            forecast_df (pd.DataFrame): DataFrame containing forecast data.
+            
+        Returns:
+            pd.DataFrame: Combined DataFrame.
+        """
+        if self.df.empty:
+            return pd.DataFrame()
+            
+        # Select only Forecast rows
+        future_only = forecast_df[forecast_df['type'] == 'Forecast'].copy()
+        
+        # Add metadata from the main df (using the first row) to ensure consistency
+        first_row = self.df.iloc[0]
+        future_only['company_name'] = first_row.get('company_name', 'Unknown')
+        future_only['currency'] = first_row.get('currency', 'N/A')
+        future_only['reporting_unit'] = first_row.get('reporting_unit', 'thousands')
+        
+        # Concatenate
+        combined_df = pd.concat([self.df, future_only], ignore_index=True)
+        return combined_df
+
 def aggregate_reports(reports: List[CompanyReport]) -> pd.DataFrame:
     """
-    Aggregates multiple CompanyReport objects into a single Pandas DataFrame
-    and calculates financial KPIs across all periods.
-    
-    Args:
-        reports (List[CompanyReport]): List of structured company data reports.
-        
-    Returns:
-        pd.DataFrame: DataFrame with aggregated financial data and calculated metrics.
+    Legacy wrapper for backward compatibility.
     """
-    all_data = []
-    
-    for report in reports:
-        for period in report.periods:
-            period_data = period.model_dump()
-            # Add metadata from the report level to each period
-            period_data['company_name'] = report.company_name
-            period_data['currency'] = report.reporting_currency
-            period_data['reporting_unit'] = report.reporting_unit
-            all_data.append(period_data)
-            
-    if not all_data:
-        return pd.DataFrame()
-    
-    df = pd.DataFrame(all_data)
-    
-    # Ensure date column is datetime
-    if 'period_end_date' in df.columns:
-        df['period_end_date'] = pd.to_datetime(df['period_end_date'])
-        df['Year'] = df['period_end_date'].dt.year
-    
-    # Sort by date descending (newest first)
-    df = df.sort_values('period_end_date', ascending=False).reset_index(drop=True)
-    
-    # --- KPI Calculations ---
-    
-    # 1. Margins
-    # Avoid division by zero
-    df['net_margin'] = df.apply(lambda x: x['net_income'] / x['revenue'] if x['revenue'] != 0 else 0, axis=1)
-    df['ebit_margin'] = df.apply(lambda x: x['ebit'] / x['revenue'] if x['revenue'] != 0 else 0, axis=1)
-    df['ebitda'] = df['ebit'] + df['depreciation_amortization'].fillna(0)
-    df['ebitda_margin'] = df.apply(lambda x: x['ebitda'] / x['revenue'] if x['revenue'] != 0 else 0, axis=1)
-    
-    # 2. Returns
-    df['roe'] = df.apply(lambda x: x['net_income'] / x['equity'] if x['equity'] != 0 else 0, axis=1)
-    
-    # 3. Growth (YoY)
-    # Since df is sorted descending (Newest, Oldest), shift(-1) gives the previous period
-    # We need to ensure we are calculating growth for the same company if we ever support multi-company (but for now assume single company or handled upstream)
-    # Ideally, we should group by company_name if mixing companies, but the requirement implies merging files for ONE company analysis usually.
-    # Let's assume these reports are for the same entity or we want to see them together.
-    
-    df['revenue_growth_yoy'] = df['revenue'].pct_change(periods=-1)
-    df['net_income_growth_yoy'] = df['net_income'].pct_change(periods=-1)
-    df['assets_growth_yoy'] = df['assets'].pct_change(periods=-1)
-    df['equity_growth_yoy'] = df['equity'].pct_change(periods=-1)
-    
-    # Reorder columns for readability
-    cols = ['period_end_date', 'Year', 'company_name', 'currency', 'reporting_unit',
-            'revenue', 'revenue_growth_yoy', 
-            'ebitda', 'ebitda_margin',
-            'ebit', 'ebit_margin',
-            'net_income', 'net_income_growth_yoy', 'net_margin',
-            'assets', 'assets_growth_yoy',
-            'equity', 'equity_growth_yoy', 'roe',
-            'liabilities', 'cogs', 'ocf']
-            
-    # Select only columns that exist
-    cols = [c for c in cols if c in df.columns]
-    
-    return df[cols]
+    analyzer = FinancialAnalyzer(reports)
+    analyzer.aggregate_data()
+    return analyzer.calculate_metrics()
 
 if __name__ == "__main__":
     # Test block

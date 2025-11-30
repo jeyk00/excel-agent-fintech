@@ -33,9 +33,16 @@ list_models.py
 
 # Debug Scripts
 debug_*.py
-tests/
+
 
 
 # Testing
 .pytest_cache/
+
+.agent/
+
+
+
+
+
 

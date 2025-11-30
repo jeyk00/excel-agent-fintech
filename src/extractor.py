@@ -33,11 +33,15 @@ def extract_data(markdown_text: str, model_name: str = "gpt-4o") -> CompanyRepor
     """
     # Auto-configure base_url for DeepSeek or Gemini
     base_url = os.getenv("OPENAI_BASE_URL")
+    api_key = os.getenv("OPENAI_API_KEY") # Default to OpenAI Key
     
     if "deepseek" in model_name.lower():
         if not base_url:
             base_url = "https://api.deepseek.com"
             print(f"Using DeepSeek Base URL: {base_url}")
+        # DeepSeek uses OpenAI-compatible API key, usually same env var or DEEPSEEK_API_KEY
+        if not api_key:
+             api_key = os.getenv("DEEPSEEK_API_KEY")
             
     elif "gemini" in model_name.lower():
         # Gemini OpenAI compatibility
@@ -74,7 +78,10 @@ def extract_data(markdown_text: str, model_name: str = "gpt-4o") -> CompanyRepor
                 "assets": float (Aktywa razem),
                 "liabilities": float (Zobowiązania razem),
                 "equity": float (Kapitał własny),
-                "ocf": float (Przepływy pieniężne z działalności operacyjnej)
+                "ocf": float (Przepływy pieniężne z działalności operacyjnej),
+                "shares_outstanding": float (Liczba akcji - UNITS),
+                "total_debt": float (Zadłużenie odsetkowe: Kredyty + Obligacje + Leasing),
+                "cash_and_equivalents": float (Środki pieniężne)
             }
         ]
     }
@@ -87,6 +94,9 @@ def extract_data(markdown_text: str, model_name: str = "gpt-4o") -> CompanyRepor
     5. Revenue and Assets must be non-negative.
     6. Ensure Assets = Liabilities + Equity (approximately).
     7. Return ONLY valid JSON. Do not include markdown formatting like ```json ... ```.
+    8. SHARES OUTSTANDING: Extract the Weighted Average Number of Shares. IMPORTANT: If the report says "in thousands", multiply by 1,000 to get UNITS.
+    9. TOTAL DEBT: Sum of Interest-Bearing Debt (Loans, Bonds, Leases). Do not include trade payables.
+    10. CASH: Extract Cash and Cash Equivalents.
     """
 
     print(f"Sending request to {model_name}...")
@@ -134,6 +144,21 @@ def extract_data(markdown_text: str, model_name: str = "gpt-4o") -> CompanyRepor
         cleaned_content = _clean_json_text(content)
         
         data = json.loads(cleaned_content)
+        
+        # Filter out invalid periods (where critical fields are None)
+        if "periods" in data and isinstance(data["periods"], list):
+            valid_periods = []
+            required_fields = ["revenue", "cogs", "ebit", "net_income", "assets", "liabilities", "equity", "ocf", "shares_outstanding", "total_debt", "cash_and_equivalents"]
+            
+            for p in data["periods"]:
+                # Check if all required fields are present and not None
+                if all(p.get(field) is not None for field in required_fields):
+                     valid_periods.append(p)
+                else:
+                    missing = [field for field in required_fields if p.get(field) is None]
+                    print(f"Warning: Dropping incomplete period: {p.get('period_end_date', 'Unknown Date')}. Missing: {missing}")
+            
+            data["periods"] = valid_periods
         
         # Validate with Pydantic
         report = CompanyReport(**data)

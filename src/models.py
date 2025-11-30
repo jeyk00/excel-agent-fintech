@@ -23,6 +23,11 @@ class FinancialPeriod(BaseModel):
     # Cash Flow
     ocf: float = Field(..., description="Operating Cash Flow (Przepływy pieniężne z działalności operacyjnej).")
 
+    # Valuation Metrics
+    shares_outstanding: float = Field(..., description="Weighted Average Number of Shares (Liczba akcji). Normalized to UNITS.")
+    total_debt: float = Field(..., description="Total Interest-Bearing Debt (Loans + Bonds + Leases).")
+    cash_and_equivalents: float = Field(..., description="Cash and Cash Equivalents (Środki pieniężne).")
+
     @model_validator(mode='after')
     def check_accounting_equation(self) -> 'FinancialPeriod':
         """

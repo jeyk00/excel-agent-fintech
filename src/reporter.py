@@ -205,6 +205,296 @@ class FinancialReporter:
         chart_row = last_data_row + 3
         worksheet.insert_chart(chart_row, start_col, chart, {'x_scale': 2, 'y_scale': 1.5})
         
+        # --- 4. DCF Valuation Model (Glass Box) ---
+        
+        dcf_start_row = chart_row + 25 # Place below chart
+        
+        # Section Header
+        worksheet.write(dcf_start_row, start_col, "DCF Valuation Model", self.title_format)
+        worksheet.write(dcf_start_row + 1, start_col, "Assumptions & Inputs (Editable)", self.subtitle_format)
+        
+        # -- Assumptions Block --
+        assumptions_row = dcf_start_row + 3
+        
+        # Input Style (Yellow Background)
+        input_format = self.workbook.add_format({
+            'bg_color': '#FFFFCC',
+            'border': 1,
+            'num_format': '0.0%'
+        })
+        
+        # WACC
+        worksheet.write(assumptions_row, start_col, "WACC", self.metric_name_format)
+        worksheet.write(assumptions_row, start_col + 1, company_info.get('wacc', 0.10), input_format)
+        wacc_cell = xl_range(assumptions_row, start_col + 1, assumptions_row, start_col + 1)
+        
+        # Terminal Growth
+        worksheet.write(assumptions_row + 1, start_col, "Terminal Growth", self.metric_name_format)
+        worksheet.write(assumptions_row + 1, start_col + 1, company_info.get('terminal_growth', 0.025), input_format)
+        g_cell = xl_range(assumptions_row + 1, start_col + 1, assumptions_row + 1, start_col + 1)
+        
+        # Tax Rate
+        worksheet.write(assumptions_row + 2, start_col, "Tax Rate", self.metric_name_format)
+        worksheet.write(assumptions_row + 2, start_col + 1, 0.19, input_format)
+        tax_rate_cell = xl_range(assumptions_row + 2, start_col + 1, assumptions_row + 2, start_col + 1)
+        
+        # EBIT Margin Assumption (Last Historical)
+        last_hist_ebit_margin = historical_df['ebit_margin'].iloc[0] if not historical_df.empty and 'ebit_margin' in historical_df.columns else 0.10
+        worksheet.write(assumptions_row, start_col + 3, "EBIT Margin (Proj)", self.metric_name_format)
+        worksheet.write(assumptions_row, start_col + 4, last_hist_ebit_margin, input_format)
+        ebit_margin_cell = xl_range(assumptions_row, start_col + 4, assumptions_row, start_col + 4)
+        
+        # D&A % Revenue Assumption (Last Historical)
+        # Calculate D&A % from last historical year
+        last_hist_rev = historical_df['revenue'].iloc[0] if not historical_df.empty else 0
+        last_hist_da = (historical_df['ebitda'].iloc[0] - historical_df['ebit'].iloc[0]) if not historical_df.empty and 'ebitda' in historical_df.columns else 0
+        da_percent = (last_hist_da / last_hist_rev) if last_hist_rev else 0.05
+        
+        worksheet.write(assumptions_row + 1, start_col + 3, "D&A % Rev", self.metric_name_format)
+        worksheet.write(assumptions_row + 1, start_col + 4, da_percent, input_format)
+        da_percent_cell = xl_range(assumptions_row + 1, start_col + 4, assumptions_row + 1, start_col + 4)
+        
+        # Capex % Revenue Assumption (Assume equal to D&A for maintenance)
+        worksheet.write(assumptions_row + 2, start_col + 3, "Capex % Rev", self.metric_name_format)
+        worksheet.write(assumptions_row + 2, start_col + 4, da_percent, input_format)
+        capex_percent_cell = xl_range(assumptions_row + 2, start_col + 4, assumptions_row + 2, start_col + 4)
+
+        # -- Projection Table --
+        proj_start_row = assumptions_row + 5
+        
+        # Get Forecast Data
+        forecast_df = df[df['type'] == 'Forecast'].sort_values('Year')
+        if forecast_df.empty:
+             # Fallback if no forecast
+             forecast_years = []
+        else:
+             forecast_years = forecast_df['Year'].tolist()
+             forecast_revenue = forecast_df['revenue'].tolist()
+
+        # Headers
+        worksheet.write(proj_start_row, start_col, "Metric", self.header_format)
+        for i, year in enumerate(forecast_years):
+            worksheet.write(proj_start_row, start_col + 1 + i, year, self.header_format)
+            
+        # Rows
+        metrics = ['Revenue', 'EBIT', 'Tax', 'NOPAT', 'Plus D&A', 'Less Capex', 'Free Cash Flow']
+        
+        # Helper for column letters (Data starts at start_col + 1)
+        from xlsxwriter.utility import xl_col_to_name, xl_rowcol_to_cell
+        
+        # 1. Revenue (Hardcoded from Forecast)
+        row = proj_start_row + 1
+        worksheet.write(row, start_col, "Revenue", self.metric_name_format)
+        for i, val in enumerate(forecast_revenue):
+            worksheet.write(row, start_col + 1 + i, val, self.currency_format)
+        rev_row_idx = row + 1 # 1-based index for formulas
+            
+        # 2. EBIT (Formula)
+        row += 1
+        worksheet.write(row, start_col, "EBIT", self.metric_name_format)
+        for i in range(len(forecast_years)):
+            col_letter = xl_col_to_name(start_col + 1 + i)
+            # Formula: =Revenue * $EBIT_Margin_Cell
+            # Use absolute reference for margin cell
+            margin_ref = xl_rowcol_to_cell(assumptions_row, start_col + 4, row_abs=True, col_abs=True)
+            formula = f"={col_letter}{rev_row_idx}*{margin_ref}"
+            worksheet.write_formula(row, start_col + 1 + i, formula, self.currency_format)
+        ebit_row_idx = row + 1
+            
+        # 3. Tax (Formula)
+        row += 1
+        worksheet.write(row, start_col, "Tax", self.metric_name_format)
+        for i in range(len(forecast_years)):
+            col_letter = xl_col_to_name(start_col + 1 + i)
+            # Formula: =EBIT * $Tax_Rate_Cell
+            tax_ref = xl_rowcol_to_cell(assumptions_row + 2, start_col + 1, row_abs=True, col_abs=True)
+            formula = f"={col_letter}{ebit_row_idx}*{tax_ref}"
+            worksheet.write_formula(row, start_col + 1 + i, formula, self.currency_format)
+        tax_row_idx = row + 1
+            
+        # 4. NOPAT (Formula)
+        row += 1
+        worksheet.write(row, start_col, "NOPAT", self.metric_name_format)
+        for i in range(len(forecast_years)):
+            col_letter = xl_col_to_name(start_col + 1 + i)
+            # Formula: =EBIT - Tax
+            formula = f"={col_letter}{ebit_row_idx}-{col_letter}{tax_row_idx}"
+            worksheet.write_formula(row, start_col + 1 + i, formula, self.currency_format)
+        nopat_row_idx = row + 1
+        
+        # 5. Plus D&A (Formula)
+        row += 1
+        worksheet.write(row, start_col, "Plus D&A", self.metric_name_format)
+        for i in range(len(forecast_years)):
+            col_letter = xl_col_to_name(start_col + 1 + i)
+            # Formula: =Revenue * $DA_Percent_Cell
+            da_ref = xl_rowcol_to_cell(assumptions_row + 1, start_col + 4, row_abs=True, col_abs=True)
+            formula = f"={col_letter}{rev_row_idx}*{da_ref}"
+            worksheet.write_formula(row, start_col + 1 + i, formula, self.currency_format)
+        da_row_idx = row + 1
+        
+        # 6. Less Capex (Formula)
+        row += 1
+        worksheet.write(row, start_col, "Less Capex", self.metric_name_format)
+        for i in range(len(forecast_years)):
+            col_letter = xl_col_to_name(start_col + 1 + i)
+            # Formula: =Revenue * $Capex_Percent_Cell
+            capex_ref = xl_rowcol_to_cell(assumptions_row + 2, start_col + 4, row_abs=True, col_abs=True)
+            formula = f"={col_letter}{rev_row_idx}*{capex_ref}"
+            worksheet.write_formula(row, start_col + 1 + i, formula, self.currency_format)
+        capex_row_idx = row + 1
+            
+        # 7. FCF (Formula)
+        row += 1
+        worksheet.write(row, start_col, "Free Cash Flow", self.metric_name_format)
+        fcf_cells = []
+        for i in range(len(forecast_years)):
+            col_letter = xl_col_to_name(start_col + 1 + i)
+            # Formula: =NOPAT + D&A - Capex
+            formula = f"={col_letter}{nopat_row_idx}+{col_letter}{da_row_idx}-{col_letter}{capex_row_idx}"
+            worksheet.write_formula(row, start_col + 1 + i, formula, self.currency_format)
+            fcf_cells.append(f"{col_letter}{row+1}")
+        fcf_row_idx = row + 1
+            
+        # -- Valuation --
+        val_start_row = row + 3
+        
+        worksheet.write(val_start_row, start_col, "Discount Period", self.metric_name_format)
+        worksheet.write(val_start_row + 1, start_col, "Discount Factor", self.metric_name_format)
+        worksheet.write(val_start_row + 2, start_col, "PV of FCF", self.metric_name_format)
+        
+        pv_cells = []
+        last_fcf_cell = fcf_cells[-1] if fcf_cells else "B1"
+        last_discount_factor_cell = "B1"
+        
+        # WACC Reference
+        wacc_ref = xl_rowcol_to_cell(assumptions_row, start_col + 1, row_abs=True, col_abs=True)
+        
+        for i in range(len(forecast_years)):
+            col_letter = xl_col_to_name(start_col + 1 + i)
+            period = i + 1
+            
+            # Period
+            worksheet.write(val_start_row, start_col + 1 + i, period, self.text_format)
+            
+            # Discount Factor: =1/(1+WACC)^Period
+            df_formula = f"=1/(1+{wacc_ref})^{period}"
+            worksheet.write_formula(val_start_row + 1, start_col + 1 + i, df_formula, self.workbook.add_format({'num_format': '0.000', 'border': 1}))
+            
+            # PV of FCF: =FCF * Discount Factor
+            pv_formula = f"={col_letter}{fcf_row_idx}*{col_letter}{val_start_row + 2}"
+            worksheet.write_formula(val_start_row + 2, start_col + 1 + i, pv_formula, self.currency_format)
+            
+            pv_cells.append(f"{col_letter}{val_start_row + 3}")
+            if i == len(forecast_years) - 1:
+                last_discount_factor_cell = f"{col_letter}{val_start_row + 2}"
+
+        # Terminal Value
+        tv_row = val_start_row + 4
+        worksheet.write(tv_row, start_col, "Terminal Value (TV)", self.metric_name_format)
+        
+        # TV Formula: =Last_FCF * (1+g) / (WACC - g)
+        g_ref = xl_rowcol_to_cell(assumptions_row + 1, start_col + 1, row_abs=True, col_abs=True)
+        tv_formula = f"={last_fcf_cell}*(1+{g_ref})/({wacc_ref}-{g_ref})"
+        worksheet.write_formula(tv_row, start_col + 1, tv_formula, self.currency_format)
+        tv_cell = f"{chr(ord('B'))}{tv_row+1}" # This is wrong, column B is Metric name. TV is usually in the last column or separate.
+        # Let's put TV value in the column next to Metric name (Start_Col + 1)
+        tv_cell = f"{xl_col_to_name(start_col + 1)}{tv_row+1}"
+        
+        # PV of TV
+        worksheet.write(tv_row + 1, start_col, "PV of TV", self.metric_name_format)
+        pv_tv_formula = f"={tv_cell}*{last_discount_factor_cell}"
+        worksheet.write_formula(tv_row + 1, start_col + 1, pv_tv_formula, self.currency_format)
+        pv_tv_cell = f"{xl_col_to_name(start_col + 1)}{tv_row+2}"
+        
+        # Enterprise Value
+        ev_row = tv_row + 3
+        ev_format = self.workbook.add_format({
+            'bold': True, 
+            'bg_color': '#DCE6F1', 
+            'border': 1, 
+            'num_format': '#,##0',
+            'font_size': 12
+        })
+        
+        worksheet.write(ev_row, start_col, "Estimated Enterprise Value", ev_format)
+        
+        # Sum of PVs + PV of TV
+        sum_range = f"{pv_cells[0]}:{pv_cells[-1]}" if pv_cells else "B1"
+        ev_formula = f"=SUM({sum_range})+{pv_tv_cell}"
+        worksheet.write_formula(ev_row, start_col + 1, ev_formula, ev_format)
+        ev_cell = f"{xl_col_to_name(start_col + 1)}{ev_row+1}"
+        
+        # -- Equity Value Bridge --
+        bridge_start_row = ev_row + 2
+        
+        # Get latest historical data for Bridge
+        # We assume the first row of historical_df is the latest year (sorted descending usually, but let's check)
+        # Actually, in create_dashboard, we sorted by Year ascending for charts, but historical_df comes from df[df['type']=='Historical'].
+        # Let's ensure we get the latest year.
+        latest_hist = historical_df.sort_values('Year', ascending=False).iloc[0] if not historical_df.empty else None
+        
+        latest_debt = latest_hist['total_debt'] if latest_hist is not None and 'total_debt' in latest_hist else 0
+        latest_cash = latest_hist['cash_and_equivalents'] if latest_hist is not None and 'cash_and_equivalents' in latest_hist else 0
+        latest_shares = latest_hist['shares_outstanding'] if latest_hist is not None and 'shares_outstanding' in latest_hist else 1 # Avoid div/0
+        
+        # 1. Less: Net Debt
+        # Net Debt = Total Debt - Cash
+        # If Cash > Debt, Net Debt is negative, so subtracting it adds to Equity Value. Correct.
+        net_debt_row = bridge_start_row
+        worksheet.write(net_debt_row, start_col, "Less: Net Debt", self.metric_name_format)
+        
+        # We'll write the formula: =Debt - Cash
+        # But since these are point-in-time values from history, we can just write the value or put them in cells.
+        # Let's put Debt and Cash in the Assumptions block or just hardcode the Net Debt calculation here for simplicity,
+        # OR better, write Debt and Cash cells and reference them.
+        # Let's write them explicitly here for transparency.
+        
+        worksheet.write(net_debt_row, start_col + 3, "Total Debt", self.text_format)
+        worksheet.write(net_debt_row, start_col + 4, latest_debt, self.currency_format)
+        debt_cell = f"{xl_col_to_name(start_col + 4)}{net_debt_row+1}"
+        
+        worksheet.write(net_debt_row + 1, start_col + 3, "Cash", self.text_format)
+        worksheet.write(net_debt_row + 1, start_col + 4, latest_cash, self.currency_format)
+        cash_cell = f"{xl_col_to_name(start_col + 4)}{net_debt_row+2}"
+        
+        # Net Debt Formula: =Debt - Cash
+        net_debt_formula = f"={debt_cell}-{cash_cell}"
+        worksheet.write_formula(net_debt_row, start_col + 1, net_debt_formula, self.currency_format)
+        net_debt_cell = f"{xl_col_to_name(start_col + 1)}{net_debt_row+1}"
+        
+        # 2. Estimated Equity Value
+        eq_row = net_debt_row + 1
+        worksheet.write(eq_row, start_col, "Estimated Equity Value", self.metric_name_format)
+        # Formula: =EV - Net Debt
+        eq_formula = f"={ev_cell}-{net_debt_cell}"
+        worksheet.write_formula(eq_row, start_col + 1, eq_formula, self.currency_format)
+        eq_cell = f"{xl_col_to_name(start_col + 1)}{eq_row+1}"
+        
+        # 3. Shares Outstanding
+        shares_row = eq_row + 2
+        worksheet.write(shares_row, start_col, "Shares Outstanding", self.metric_name_format)
+        worksheet.write(shares_row, start_col + 1, latest_shares, self.workbook.add_format({'num_format': '#,##0', 'border': 1}))
+        shares_cell = f"{xl_col_to_name(start_col + 1)}{shares_row+1}"
+        
+        # 4. Implied Share Price
+        price_row = shares_row + 1
+        price_format = self.workbook.add_format({
+            'bold': True, 
+            'font_color': '#0000FF', # Blue
+            'font_size': 14,
+            'border': 1, 
+            'num_format': '0.00'
+        })
+        
+        # Get date string for label
+        val_date_str = latest_hist['period_end_date'].strftime('%Y-%m-%d') if latest_hist is not None and 'period_end_date' in latest_hist else "Unknown Date"
+        
+        worksheet.write(price_row, start_col, f"Implied Share Price (PLN) [As of {val_date_str}]", self.metric_name_format)
+        # Formula: =Equity Value * 1000 / Shares (assuming EV is in thousands and Shares in units)
+        price_formula = f"={eq_cell}*1000/{shares_cell}"
+        worksheet.write_formula(price_row, start_col + 1, price_formula, price_format)
+        
         # Close
         try:
             # self.writer.close() calls self.workbook.close() but let's be explicit and check for errors
@@ -223,7 +513,7 @@ class FinancialReporter:
             print(f"❌ Error saving Excel file: {e}")
             raise
 
-def generate_excel_report(df: pd.DataFrame, output_path: str) -> str:
+def generate_excel_report(df: pd.DataFrame, output_path: str, wacc: float = 0.10, terminal_growth: float = 0.025) -> str:
     """
     Wrapper function to maintain compatibility with main.py.
     Instantiates FinancialReporter and creates the dashboard.
@@ -236,7 +526,9 @@ def generate_excel_report(df: pd.DataFrame, output_path: str) -> str:
     company_info = {
         'company_name': df['company_name'].iloc[0] if 'company_name' in df.columns else 'Unknown Company',
         'currency': df['currency'].iloc[0] if 'currency' in df.columns else 'N/A',
-        'reporting_unit': df['reporting_unit'].iloc[0] if 'reporting_unit' in df.columns else 'thousands'
+        'reporting_unit': df['reporting_unit'].iloc[0] if 'reporting_unit' in df.columns else 'thousands',
+        'wacc': wacc,
+        'terminal_growth': terminal_growth
     }
     
     try:

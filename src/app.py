@@ -12,9 +12,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.filter import filter_financial_pages
 from src.ingest.factory import get_ingestion_strategy
 from src.extractor import extract_data
-from src.analyzer import aggregate_reports
+from src.analyzer import FinancialAnalyzer
 from src.reporter import generate_excel_report
-from src.ml.forecaster import predict_future_revenue
+from src.ml.forecaster import RevenueForecaster
 
 # Load environment variables
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
@@ -49,7 +49,7 @@ with st.sidebar:
     st.info("Ensure API Keys are set in `.env`.")
 
 # File Uploader
-uploaded_files = st.file_uploader("Upload Financial Reports", type=["pdf", "xml"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("Upload Financial Reports", type=["pdf", "xml", "xhtml"], accept_multiple_files=True)
 
 # Initialize Session State
 if 'analysis_complete' not in st.session_state:
@@ -108,37 +108,34 @@ if uploaded_files and st.button("🚀 Start Analysis"):
             current_progress += step_size * 4
             progress_bar.progress(min(int(current_progress), 90))
             
-        # 4. Aggregation
-        status_text.text("📊 Aggregating Reports...")
-        df = aggregate_reports(all_reports)
-        
-        if not df.empty:
-            # 5. Forecasting
-            status_text.text("🔮 Forecasting Future Revenue...")
-            forecast_df = predict_future_revenue(df[['Year', 'revenue']], years_ahead=5)
+            # 4. Aggregation
+            status_text.text("📊 Aggregating Reports...")
+            analyzer = FinancialAnalyzer(all_reports)
+            analyzer.aggregate_data()
+            df = analyzer.calculate_metrics()
             
-            # 6. Generate Report
-            status_text.text("📈 Generating Investor-Grade Excel Dashboard...")
-            # Use the name of the first file for the output, or a generic name
-            base_name = os.path.splitext(uploaded_files[0].name)[0] if uploaded_files else "report"
-            output_filename = f"{base_name}_analysis.xlsx"
-            output_path = os.path.join("data", "processed", output_filename)
-            
-            # Merge Forecast into Main DataFrame for the Report
-            # 1. Select only Forecast rows
-            future_only = forecast_df[forecast_df['type'] == 'Forecast'].copy()
-            
-            # 2. Add metadata from the main df (using the first row) to ensure consistency
             if not df.empty:
-                first_row = df.iloc[0]
-                future_only['company_name'] = first_row.get('company_name', 'Unknown')
-                future_only['currency'] = first_row.get('currency', 'N/A')
-                future_only['reporting_unit'] = first_row.get('reporting_unit', 'thousands')
-            
-            # 3. Concatenate
-            combined_df = pd.concat([df, future_only], ignore_index=True)
-            
-            final_path = generate_excel_report(combined_df, output_path)
+                # 5. Forecasting
+                status_text.text("🔮 Forecasting Future Revenue...")
+                forecaster = RevenueForecaster(years_ahead=5)
+                forecaster.fit(df[['Year', 'revenue']])
+                forecast_df = forecaster.predict()
+                
+                # 6. Generate Report
+                status_text.text("📈 Generating Investor-Grade Excel Dashboard...")
+                # Use the name of the first file for the output, or a generic name
+                base_name = os.path.splitext(uploaded_files[0].name)[0] if uploaded_files else "report"
+                output_filename = f"{base_name}_analysis.xlsx"
+                output_path = os.path.join("data", "processed", output_filename)
+                
+                # Merge Forecast into Main DataFrame for the Report
+                combined_df = analyzer.enrich_with_forecast(forecast_df)
+                
+                # Add DCF assumptions to company_info implicitly by passing them to generate_excel_report
+                # We need to update generate_excel_report signature first.
+                # For now, let's pass them as a dictionary if possible, or update the function.
+                
+                final_path = generate_excel_report(combined_df, output_path, wacc=wacc/100, terminal_growth=terminal_growth/100)
             
             progress_bar.progress(100)
             status_text.text("✅ Analysis Complete!")

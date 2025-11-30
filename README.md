@@ -21,6 +21,12 @@ This agent automates the tedious process of "financial spreading" — converting
 *   **AI Forecasting (v2.0)**:
     *   **Revenue Prediction**: Uses Linear Regression (`scikit-learn`) to forecast revenue for the next 5 years.
     *   **DCF Ready**: Includes placeholders for WACC and Terminal Growth Rate assumptions.
+*   **"Glass Box" DCF Valuation**:
+    *   **Transparent Models**: Generates a fully functional Discounted Cash Flow (DCF) model in Excel using native formulas (not hardcoded values).
+    *   **Interactive Assumptions**: Users can modify WACC, Terminal Growth, and Margins directly in Excel to see real-time valuation updates.
+    *   **Valuation Bridge**: Automatically calculates **Enterprise Value**, **Equity Value**, and **Implied Share Price** (PLN).
+*   **Expanded Format Support**:
+    *   **XHTML Support**: Now supports parsing of `.xhtml` financial reports (e.g., ESEF filings) using `BeautifulSoup`.
 *   **Investor-Grade Dashboard**:
     *   **Native Excel Charts**: Includes a dedicated Revenue Forecast chart (Historical + 5Y Projection).
     *   **Sparklines**: Visual trend lines for every metric.
