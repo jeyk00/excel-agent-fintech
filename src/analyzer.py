@@ -102,8 +102,8 @@ class FinancialAnalyzer:
         # Avoid division by zero
         df['net_margin'] = df.apply(lambda x: x['net_income'] / x['revenue'] if x['revenue'] != 0 else 0, axis=1)
         df['ebit_margin'] = df.apply(lambda x: x['ebit'] / x['revenue'] if x['revenue'] != 0 else 0, axis=1)
-        # Handle D&A: convert to float to avoid FutureWarning with fillna
-        df['ebitda'] = df['ebit'] + pd.to_numeric(df['depreciation_amortization'], errors='coerce').fillna(0)
+        # Handle D&A: ensure numeric type before fillna to avoid deprecation warning
+        df['ebitda'] = df['ebit'] + df['depreciation_amortization'].astype(float).fillna(0)
         df['ebitda_margin'] = df.apply(lambda x: x['ebitda'] / x['revenue'] if x['revenue'] != 0 else 0, axis=1)
         
         # 2. Returns

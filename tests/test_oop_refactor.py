@@ -45,9 +45,11 @@ class TestOOPRefactor(unittest.TestCase):
         self.assertIn('revenue_growth_yoy', df_metrics.columns)
         self.assertIn('net_margin', df_metrics.columns)
         
-        # Check values (USD converted to PLN with rate 4.0)
+        # Check values (USD converted to PLN using rate from FinancialAnalyzer.EXCHANGE_RATES)
+        # USD rate = 4.0, so 1000 USD -> 4000 PLN
+        expected_rate = FinancialAnalyzer.EXCHANGE_RATES.get('USD', 4.0)
         latest_period = df_metrics.iloc[0] # 2024
-        self.assertEqual(latest_period['revenue'], 4000)  # 1000 * 4.0 USD->PLN
+        self.assertEqual(latest_period['revenue'], 1000 * expected_rate)
         self.assertAlmostEqual(latest_period['net_margin'], 0.24)
 
     def test_revenue_forecaster(self):
