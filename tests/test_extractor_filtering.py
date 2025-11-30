@@ -10,6 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.extractor import extract_data
 
 class TestExtractorFiltering(unittest.TestCase):
+    @patch.dict(os.environ, {"OPENAI_API_KEY": "test-api-key"})
     @patch('src.extractor.OpenAI')
     def test_filter_incomplete_periods(self, mock_openai):
         # Mock LLM response with one valid and one invalid period
@@ -27,7 +28,10 @@ class TestExtractorFiltering(unittest.TestCase):
                     "assets": 2000.0,
                     "liabilities": 1000.0,
                     "equity": 1000.0,
-                    "ocf": 250.0
+                    "ocf": 250.0,
+                    "shares_outstanding": 100.0,
+                    "total_debt": 200.0,
+                    "cash_and_equivalents": 50.0
                 },
                 {
                     "period_end_date": "2023-12-31",
@@ -38,7 +42,10 @@ class TestExtractorFiltering(unittest.TestCase):
                     "assets": 2000.0,
                     "liabilities": 1000.0,
                     "equity": 1000.0,
-                    "ocf": 250.0
+                    "ocf": 250.0,
+                    "shares_outstanding": 100.0,
+                    "total_debt": 200.0,
+                    "cash_and_equivalents": 50.0
                 }
             ]
         })

@@ -10,9 +10,6 @@ from src.models import CompanyReport
 
 load_dotenv()
 
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-
-# ... (imports)
 
 @retry(
     retry=retry_if_exception_type(Exception), # Retry on any exception for now, ideally specific ones

@@ -102,7 +102,8 @@ class FinancialAnalyzer:
         # Avoid division by zero
         df['net_margin'] = df.apply(lambda x: x['net_income'] / x['revenue'] if x['revenue'] != 0 else 0, axis=1)
         df['ebit_margin'] = df.apply(lambda x: x['ebit'] / x['revenue'] if x['revenue'] != 0 else 0, axis=1)
-        df['ebitda'] = df['ebit'] + df['depreciation_amortization'].fillna(0)
+        # Handle D&A: convert to float to avoid FutureWarning with fillna
+        df['ebitda'] = df['ebit'] + pd.to_numeric(df['depreciation_amortization'], errors='coerce').fillna(0)
         df['ebitda_margin'] = df.apply(lambda x: x['ebitda'] / x['revenue'] if x['revenue'] != 0 else 0, axis=1)
         
         # 2. Returns
@@ -176,14 +177,16 @@ if __name__ == "__main__":
         FinancialPeriod(
             period_end_date=date(2024, 12, 31),
             revenue=1000, cogs=600, ebit=300, net_income=240,
-            assets=2000, liabilities=1000, equity=1000, ocf=350
+            assets=2000, liabilities=1000, equity=1000, ocf=350,
+            shares_outstanding=100, total_debt=500, cash_and_equivalents=100
         )
     ]
     periods2 = [
         FinancialPeriod(
             period_end_date=date(2023, 12, 31),
             revenue=800, cogs=500, ebit=200, net_income=150,
-            assets=1800, liabilities=900, equity=900, ocf=250
+            assets=1800, liabilities=900, equity=900, ocf=250,
+            shares_outstanding=100, total_debt=400, cash_and_equivalents=80
         )
     ]
     report1 = CompanyReport(company_name="Test Corp", reporting_currency="PLN", periods=periods1)

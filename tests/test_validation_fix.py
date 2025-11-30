@@ -16,7 +16,8 @@ def test_validation_fix():
             period_end_date=date(2024, 12, 31),
             revenue=1000, cogs=600, ebit=300, net_income=240,
             assets=2000, liabilities=1000, equity=1000, ocf=350,
-            depreciation_amortization=None # This caused the error before
+            depreciation_amortization=None, # This caused the error before
+            shares_outstanding=100, total_debt=500, cash_and_equivalents=100
         )
         print("SUCCESS: FinancialPeriod instantiated successfully with None for depreciation_amortization.")
     except Exception as e:
