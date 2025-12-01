@@ -13,7 +13,10 @@ def test_financial_period_valid():
         assets=1000,
         liabilities=400,
         equity=600,
-        ocf=250
+        ocf=250,
+        shares_outstanding=100,
+        total_debt=200,
+        cash_and_equivalents=50
     )
     assert fp.assets == 1000
     assert fp.liabilities + fp.equity == 1000
@@ -29,7 +32,10 @@ def test_financial_period_invalid_equation():
             assets=1000,
             liabilities=400,
             equity=500, # Missing 100
-            ocf=250
+            ocf=250,
+            shares_outstanding=100,
+            total_debt=200,
+            cash_and_equivalents=50
         )
     assert "Accounting equation violated" in str(excinfo.value)
 
@@ -44,7 +50,10 @@ def test_financial_period_negative_revenue():
             assets=1000,
             liabilities=400,
             equity=600,
-            ocf=250
+            ocf=250,
+            shares_outstanding=100,
+            total_debt=200,
+            cash_and_equivalents=50
         )
 
 if __name__ == "__main__":

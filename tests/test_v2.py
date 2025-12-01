@@ -56,12 +56,14 @@ class TestV2Upgrade(unittest.TestCase):
         p1 = FinancialPeriod(
             period_end_date=date(2022, 12, 31),
             revenue=100, cogs=50, ebit=20, net_income=10,
-            assets=200, liabilities=100, equity=100, ocf=15
+            assets=200, liabilities=100, equity=100, ocf=15,
+            shares_outstanding=100, total_debt=50, cash_and_equivalents=20
         )
         p2 = FinancialPeriod(
             period_end_date=date(2021, 12, 31),
             revenue=90, cogs=45, ebit=18, net_income=9,
-            assets=180, liabilities=90, equity=90, ocf=12
+            assets=180, liabilities=90, equity=90, ocf=12,
+            shares_outstanding=100, total_debt=45, cash_and_equivalents=18
         )
         
         report1 = CompanyReport(company_name="Test", reporting_currency="USD", periods=[p1])

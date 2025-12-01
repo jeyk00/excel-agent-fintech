@@ -17,7 +17,8 @@ class TestCurrencyConversion(unittest.TestCase):
             FinancialPeriod(
                 period_end_date=date(2024, 12, 31),
                 revenue=100, cogs=60, ebit=30, net_income=24,
-                assets=200, liabilities=100, equity=100, ocf=35
+                assets=200, liabilities=100, equity=100, ocf=35,
+                shares_outstanding=100, total_debt=50, cash_and_equivalents=20
             )
         ]
         self.report_eur = CompanyReport(company_name="Euro Corp", reporting_currency="EUR", periods=self.periods_eur)
@@ -27,7 +28,8 @@ class TestCurrencyConversion(unittest.TestCase):
             FinancialPeriod(
                 period_end_date=date(2023, 12, 31),
                 revenue=100, cogs=60, ebit=30, net_income=24,
-                assets=200, liabilities=100, equity=100, ocf=35
+                assets=200, liabilities=100, equity=100, ocf=35,
+                shares_outstanding=100, total_debt=50, cash_and_equivalents=20
             )
         ]
         self.report_pln = CompanyReport(company_name="PLN Corp", reporting_currency="PLN", periods=self.periods_pln)

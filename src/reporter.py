@@ -497,8 +497,7 @@ class FinancialReporter:
         
         # Close
         try:
-            # self.writer.close() calls self.workbook.close() but let's be explicit and check for errors
-            self.workbook.close() 
+            # Only call close on the writer, which handles the workbook internally
             self.writer.close()
             print(f"Excel dashboard saved to: {self.output_path}")
         except PermissionError:

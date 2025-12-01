@@ -18,12 +18,14 @@ class TestOOPRefactor(unittest.TestCase):
             FinancialPeriod(
                 period_end_date=date(2024, 12, 31),
                 revenue=1000, cogs=600, ebit=300, net_income=240,
-                assets=2000, liabilities=1000, equity=1000, ocf=350
+                assets=2000, liabilities=1000, equity=1000, ocf=350,
+                shares_outstanding=100, total_debt=500, cash_and_equivalents=100
             ),
             FinancialPeriod(
                 period_end_date=date(2023, 12, 31),
                 revenue=800, cogs=500, ebit=200, net_income=150,
-                assets=1800, liabilities=900, equity=900, ocf=250
+                assets=1800, liabilities=900, equity=900, ocf=250,
+                shares_outstanding=100, total_debt=400, cash_and_equivalents=80
             )
         ]
         self.report = CompanyReport(company_name="Test Corp", reporting_currency="USD", periods=self.periods)
@@ -43,9 +45,11 @@ class TestOOPRefactor(unittest.TestCase):
         self.assertIn('revenue_growth_yoy', df_metrics.columns)
         self.assertIn('net_margin', df_metrics.columns)
         
-        # Check values
+        # Check values (USD converted to PLN using rate from FinancialAnalyzer.EXCHANGE_RATES)
+        # USD rate = 4.0, so 1000 USD -> 4000 PLN
+        expected_rate = FinancialAnalyzer.EXCHANGE_RATES.get('USD', 4.0)
         latest_period = df_metrics.iloc[0] # 2024
-        self.assertEqual(latest_period['revenue'], 1000)
+        self.assertEqual(latest_period['revenue'], 1000 * expected_rate)
         self.assertAlmostEqual(latest_period['net_margin'], 0.24)
 
     def test_revenue_forecaster(self):

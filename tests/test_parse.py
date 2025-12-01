@@ -1,7 +1,12 @@
 import os
 import sys
+import pytest
 from src.parser import parse_pdf
 
+@pytest.mark.skipif(
+    not os.getenv("LLAMA_CLOUD_API_KEY"),
+    reason="LLAMA_CLOUD_API_KEY not set"
+)
 def test_parse_pdf_integration():
     """
     Integration test for parse_pdf.
@@ -15,9 +20,7 @@ def test_parse_pdf_integration():
         pdf_path = "data/raw/sample_report.pdf"
     
     if not os.path.exists(pdf_path):
-        print(f"SKIPPING TEST: PDF file not found at {pdf_path}")
-        print("Please place a sample PDF at 'data/raw/sample_report.pdf' or provide a path as an argument.")
-        return
+        pytest.skip(f"PDF file not found at {pdf_path}")
 
     print(f"Testing parse_pdf with: {pdf_path}")
     try:

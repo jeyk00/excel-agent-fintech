@@ -3,7 +3,7 @@ name = "excel-financial-agent"
 version = "0.1.0"
 description = "Turn PDF financial reports into investor-grade Excel dashboards instantly. This AI agent extracts key metrics, calculates EBITDA, and visualizes trends, saving you hours of manual data entry."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "beautifulsoup4>=4.14.2",
     "llama-parse>=0.6.81",
