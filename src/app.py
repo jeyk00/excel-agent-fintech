@@ -114,6 +114,11 @@ if uploaded_files and st.button("🚀 Start Analysis"):
             analyzer.aggregate_data()
             df = analyzer.calculate_metrics()
             
+            # Initialize variables to ensure they exist even if df is empty
+            forecast_df = None
+            final_path = None
+            
+
             if not df.empty:
                 # 5. Forecasting
                 status_text.text("🔮 Forecasting Future Revenue...")
