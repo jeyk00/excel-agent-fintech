@@ -45,6 +45,19 @@ class FinancialAnalyzer:
             if metric in row and row[metric] is not None:
                 row[metric] = row[metric] * rate
                 
+        # --- Heuristic Safeguard for Shares Units ---
+        # If shares are tiny (< 2M) but revenue is huge (> 100M), it's likely "in thousands" error.
+        # Example: CD Projekt has ~100M shares. If model says 100,000, it missed the unit.
+        if row.get('shares_outstanding') and row.get('revenue'):
+            shares = row['shares_outstanding']
+            revenue = row['revenue']
+            
+            # Threshold: < 10M shares AND > 500M revenue (arbitrary but safe for big listed cos)
+            if shares < 10_000_000 and revenue > 500_000_000:
+                print(f"⚠️ Heuristic applied: Fixed Shares unit (x1000) for {row.get('period_end_date', 'Unknown')}. Extracted: {shares}")
+                row['shares_outstanding'] = shares * 1000
+        # --------------------------------------------
+
         row['currency'] = self.TARGET_CURRENCY
         return row
 

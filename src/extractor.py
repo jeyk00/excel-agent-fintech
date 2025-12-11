@@ -92,9 +92,19 @@ def extract_data(markdown_text: str, model_name: str = "gpt-4o") -> CompanyRepor
        - `Assets` MUST EQUAL `Liabilities` + `Equity` (approximate tolerance ok).
        - In Polish reports, "Pasywa" = Total Liabilities & Equity. Do NOT put "Pasywa" into the "liabilities" field.
        - "Zobowiązania" = Liabilities. "Kapitał własny" = Equity.
-       - Verify that `assets` ≈ `liabilities` + `equity` before responding. if they don't match, you extracted the wrong lines.
-    6. SHARES OUTSTANDING: Extract the Weighted Average Number of Shares. If "in thousands", multiply by 1,000.
-    7. TOTAL DEBT: Sum of Interest-Bearing Debt (Loans, Bonds, Leases). Do not include trade payables.
+       - Verify that `assets` ≈ `liabilities` + `equity` before responding.
+       
+    6. **SHARES OUTSTANDING (Weighted Average)**:
+       - **CRITICAL**: The report often says "in thousands" (w tysiącach).
+       - IF the table header says "in thousands" or values are small (e.g., 100,000 for a big company), **YOU MUST MULTIPLY BY 1,000**.
+       - Example: If text says "100 500" but header is "in thousands", output `100500000`.
+       - Output MUST be in **UNITS** (single shares), NOT thousands.
+       
+    7. **TOTAL DEBT**:
+       - SUM of: Interest-Bearing Loans + Bonds + **LEASE LIABILITIES** (Zobowiązania z tytułu leasingu/umów najmu).
+       - INCLUDE both Long-term (Długoterminowe) and Short-term (Krótkoterminowe) portions.
+       - Do NOT include trade payables or provisions.
+       
     8. Return ONLY valid JSON.
     """
 
