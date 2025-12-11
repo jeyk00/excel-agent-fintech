@@ -508,8 +508,27 @@ class FinancialReporter:
         val_date_str = latest_hist['period_end_date'].strftime('%Y-%m-%d') if latest_hist is not None and 'period_end_date' in latest_hist else "Unknown Date"
         
         worksheet.write(price_row, start_col, f"Implied Share Price (PLN) [As of {val_date_str}]", self.metric_name_format)
-        # Formula: =Equity Value * 1000 / Shares (assuming EV is in thousands and Shares in units)
-        price_formula = f"={eq_cell}/{shares_cell}"
+        
+        # Determine Multiplier based on Reporting Unit
+        # Equity Value is in the table's currency unit. Shares are in Units.
+        # We need to convert Equity Value to Units (numerator) before dividing by Shares.
+        rep_unit = str(company_info.get('reporting_unit', 'thousands')).lower()
+        
+        if 'thousand' in rep_unit:
+            unit_mult = 1000
+        elif 'million' in rep_unit:
+            unit_mult = 1_000_000
+        else:
+            unit_mult = 1
+            
+        print(f"DEBUG: Reporting Unit: {rep_unit}, Multiplier: {unit_mult}")
+
+        # Formula: =Equity Value * Multiplier / Shares
+        if unit_mult == 1:
+             price_formula = f"={eq_cell}/{shares_cell}"
+        else:
+             price_formula = f"={eq_cell}*{unit_mult}/{shares_cell}"
+             
         worksheet.write_formula(price_row, start_col + 1, price_formula, price_format)
         
         # Close
