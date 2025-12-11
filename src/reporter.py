@@ -509,7 +509,7 @@ class FinancialReporter:
         
         worksheet.write(price_row, start_col, f"Implied Share Price (PLN) [As of {val_date_str}]", self.metric_name_format)
         # Formula: =Equity Value * 1000 / Shares (assuming EV is in thousands and Shares in units)
-        price_formula = f"={eq_cell}*1000/{shares_cell}"
+        price_formula = f"={eq_cell}/{shares_cell}"
         worksheet.write_formula(price_row, start_col + 1, price_formula, price_format)
         
         # Close
