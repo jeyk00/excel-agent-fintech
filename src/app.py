@@ -35,7 +35,7 @@ with st.sidebar:
     st.header("Configuration")
     model_name = st.selectbox(
         "Select Model",
-        ["gemini-1.5-flash-latest", "gemini-2.0-flash", "gpt-4o", "deepseek-reasoner"],
+        ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gpt-4o", "deepseek-reasoner"],
         index=0
     )
     use_filter = st.checkbox("Use Smart PDF Filter", value=True, help="Reduces cost and noise by filtering relevant pages.")
