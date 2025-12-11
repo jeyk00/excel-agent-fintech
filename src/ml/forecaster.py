@@ -80,8 +80,22 @@ class RevenueForecaster:
             future_revenues = [self.last_revenue * ((1 + growth_rate) ** i) for i in range(1, self.years_ahead + 1)]
         else:
             future_revenues = self.model.predict(future_years)
-            # Ensure no negative revenue predictions
-            future_revenues = np.maximum(future_revenues, 0)
+            
+            # --- SAFEGUARD: Prevent Death Spiral (Revenue -> 0) ---
+            # If the trend is extremely negative, linear regression sends revenue to 0.
+            # Real companies usually stabilize or shrink slower.
+            # We enforce a floor: Revenue shouldn't drop below 30% of last year's revenue in the forecast window,
+            # unless it was already 0.
+            
+            floor_value = self.last_revenue * 0.30
+            
+            # Apply floor and ensure non-negative
+            future_revenues = np.maximum(future_revenues, floor_value)
+            future_revenues = np.maximum(future_revenues, 0) # Double check against 0
+            
+            # Additional Heuristic: If slope is negative, dampen the fall?
+            # For now, the floor is the most critical fix to prevent TV=0.
+            # ------------------------------------------------------
 
         forecast_df = pd.DataFrame({
             'Year': future_years.flatten(),
