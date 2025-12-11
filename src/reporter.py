@@ -239,16 +239,33 @@ class FinancialReporter:
         tax_rate_cell = xl_range(assumptions_row + 2, start_col + 1, assumptions_row + 2, start_col + 1)
         
         # EBIT Margin Assumption (Last Historical)
-        last_hist_ebit_margin = historical_df['ebit_margin'].iloc[0] if not historical_df.empty and 'ebit_margin' in historical_df.columns else 0.10
+        # DEBUG: Print historical df info to debug missing values
+        print("DEBUG: Historical DF Shape:", historical_df.shape)
+        if not historical_df.empty and 'ebit_margin' in historical_df.columns:
+            last_hist_ebit_margin = float(historical_df['ebit_margin'].iloc[0])
+            print(f"DEBUG: Extracted EBIT Margin from history: {last_hist_ebit_margin}")
+        else:
+            last_hist_ebit_margin = 0.10
+            print("DEBUG: Using default EBIT Margin 0.10")
+
+        # Safeguard: If margin is 0 (likely error), default to 10%
+        if abs(last_hist_ebit_margin) < 0.001: 
+            print("DEBUG: Margin too small, resetting to 0.10")
+            last_hist_ebit_margin = 0.10
+            
         worksheet.write(assumptions_row, start_col + 3, "EBIT Margin (Proj)", self.metric_name_format)
         worksheet.write(assumptions_row, start_col + 4, last_hist_ebit_margin, input_format)
         ebit_margin_cell = xl_range(assumptions_row, start_col + 4, assumptions_row, start_col + 4)
         
         # D&A % Revenue Assumption (Last Historical)
         # Calculate D&A % from last historical year
-        last_hist_rev = historical_df['revenue'].iloc[0] if not historical_df.empty else 0
-        last_hist_da = (historical_df['ebitda'].iloc[0] - historical_df['ebit'].iloc[0]) if not historical_df.empty and 'ebitda' in historical_df.columns else 0
-        da_percent = (last_hist_da / last_hist_rev) if last_hist_rev else 0.05
+        last_hist_rev = float(historical_df['revenue'].iloc[0]) if not historical_df.empty else 0
+        last_hist_da = float(historical_df['ebitda'].iloc[0] - historical_df['ebit'].iloc[0]) if not historical_df.empty and 'ebitda' in historical_df.columns else 0
+        
+        if last_hist_rev > 0:
+            da_percent = last_hist_da / last_hist_rev
+        else:
+            da_percent = 0.05
         
         worksheet.write(assumptions_row + 1, start_col + 3, "D&A % Rev", self.metric_name_format)
         worksheet.write(assumptions_row + 1, start_col + 4, da_percent, input_format)
