@@ -12,9 +12,9 @@ load_dotenv()
 
 
 @retry(
-    retry=retry_if_exception_type(Exception), # Retry on any exception for now, ideally specific ones
+    retry=retry_if_exception_type(Exception), # Retry on any exception for now
     stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=4, max=60),
+    wait=wait_exponential(multiplier=2, min=15, max=120), # Gentler backoff: starts at 15s, then 30s, 60s...
     reraise=True
 )
 def extract_data(markdown_text: str, model_name: str = "gpt-4o") -> CompanyReport:
