@@ -72,9 +72,9 @@ def extract_data(markdown_text: str, model_name: str = "gpt-4o") -> CompanyRepor
                 "ebit": float (Zysk operacyjny),
                 "depreciation_amortization": float (Amortyzacja),
                 "net_income": float (Zysk netto),
-                "assets": float (Aktywa razem),
-                "liabilities": float (Zobowiązania razem),
-                "equity": float (Kapitał własny),
+                "assets": float (Aktywa razem - Total Assets),
+                "liabilities": float (Zobowiązania razem - Total Liabilities only, DO NOT INCLUDE EQUITY),
+                "equity": float (Kapitał własny - Total Equity),
                 "ocf": float (Przepływy pieniężne z działalności operacyjnej),
                 "shares_outstanding": float (Liczba akcji - UNITS),
                 "total_debt": float (Zadłużenie odsetkowe: Kredyty + Obligacje + Leasing),
@@ -84,16 +84,18 @@ def extract_data(markdown_text: str, model_name: str = "gpt-4o") -> CompanyRepor
     }
     
     Rules:
-    1. The output MUST be a single JSON object with a "periods" list. Do NOT return a list of objects directly.
-    2. Use EXACT keys provided above (e.g., "cogs", "ebit", "depreciation_amortization"). Do NOT use "cost_of_sales" or "operating_profit".
+    1. The output MUST be a single JSON object with a "periods" list.
+    2. Use EXACT keys provided above.
     3. Extract data for ALL available reporting periods found in the text.
     4. If a value is negative in the report (e.g., loss), ensure it is negative in the JSON.
-    5. Revenue and Assets must be non-negative.
-    6. Ensure Assets = Liabilities + Equity (approximately).
-    7. Return ONLY valid JSON. Do not include markdown formatting like ```json ... ```.
-    8. SHARES OUTSTANDING: Extract the Weighted Average Number of Shares. IMPORTANT: If the report says "in thousands", multiply by 1,000 to get UNITS.
-    9. TOTAL DEBT: Sum of Interest-Bearing Debt (Loans, Bonds, Leases). Do not include trade payables.
-    10. CASH: Extract Cash and Cash Equivalents.
+    5. **CRITICAL ACCOUNTING CHECK**:
+       - `Assets` MUST EQUAL `Liabilities` + `Equity` (approximate tolerance ok).
+       - In Polish reports, "Pasywa" = Total Liabilities & Equity. Do NOT put "Pasywa" into the "liabilities" field.
+       - "Zobowiązania" = Liabilities. "Kapitał własny" = Equity.
+       - Verify that `assets` ≈ `liabilities` + `equity` before responding. if they don't match, you extracted the wrong lines.
+    6. SHARES OUTSTANDING: Extract the Weighted Average Number of Shares. If "in thousands", multiply by 1,000.
+    7. TOTAL DEBT: Sum of Interest-Bearing Debt (Loans, Bonds, Leases). Do not include trade payables.
+    8. Return ONLY valid JSON.
     """
 
     print(f"Sending request to {model_name}...")
@@ -139,6 +141,8 @@ def extract_data(markdown_text: str, model_name: str = "gpt-4o") -> CompanyRepor
         
         # Clean potential <think> blocks or markdown formatting
         cleaned_content = _clean_json_text(content)
+        
+        print(f"DEBUG RAW JSON:\n{cleaned_content[:500]}... (truncated)\n") # Log start of JSON for debugging
         
         data = json.loads(cleaned_content)
         
